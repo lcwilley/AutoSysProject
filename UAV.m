@@ -1,29 +1,156 @@
 classdef UAV < handle
     properties
+        % State variables
         X % UAV state
+        Xe % Estimated UAV state
+        Xd % Desired UAV position
+        
+        % Plotting variables
         plotHandles % UAV plot handles
+        w % UAV width -- also used in the controller
+        h % UAV height
+        
+        % Controller variables
+        u % commanded force input
+        integrator % Current value of the integrator
+        error % Current error (distance and bearing)
+        error_1 % Previous error (distance and bearing)
+        kp % Position gain
+        ki % Integrator gain
+        limit % Force limit--assumed symmetric
+        v_limit
+        th_limit
+        linear_ctrl % PID controller acting on the distance
+        angular_ctrl % PID controller acting on the heading
+        dt % Time step
+        
+        % UAV dynamics properties
+        m % mass
+        J % moment of inertia
+        v
+        om
+        drag % drag coefficient
     end
     methods
-        function self = UAV(P)
+        function self = UAV(P,dt)
             self.X = [P.x0;
                       P.y0;
                       P.th0];
+            self.w = P.w;
+            self.h = P.h;
+            self.Xe = self.X;
             self.animate();
+            self.Xd = [P.xd;
+                       P.yd];
+            self.th_limit = pi/2; % rad/s
+            self.v_limit = 2; %m/s
+            self.dt = dt;
+            self.integrator = 0.0;
+%             self.linear_ctrl = PIDControl(P.kp,P.ki,P.kd,P.limit,P.beta,dt);
+%             self.angular_ctrl = PIDControl(P.kp,P.ki,P.kd,P.limit,P.beta,dt);
         end
-        function self = animate(self)
-            w = 1;
-            h = 0.5;
+        
+        function self = move_to_target(self)
+            % Using the defined target position, moves the UAV toward the
+            % goal position
             
+            % Determine the required forces
+%             self.calculateForce();
+            self.skipToVelocity();
+            self.updateDynamics();
+            
+            % Update the estimated position
+            self.updateStateEstimate();
+        end
+        
+        function self = skipToVelocity(self)
+            % Calculates the required angular and linear velocity to reach
+            % the goal location
+            raw_err = self.Xd - self.Xe(1:2);
+            raw_err(3) = atan2(self.Xd(2)-self.Xe(2),...
+                self.Xd(1)-self.Xe(1))-self.Xe(3);
+            self.error(1) = sqrt(raw_err(1)^2+raw_err(2)^2);
+            if self.error(1) > 0.01
+                self.error(2) = wrapToPi(raw_err(3));
+            else
+                self.error(2) = 0;
+            end
+            
+            if self.error(1) < self.v_limit * self.dt
+                self.v = self.error(1);
+            else
+                self.v = self.v_limit;
+            end
+            if self.error(2) < self.th_limit * self.dt
+                self.om = self.error(2);
+            else
+                self.om = self.th_limit;
+            end
+        end
+        
+        function self = updateDynamics(self)
+            self.X(1) = self.X(1) + self.v*cos(self.X(3))*self.dt;
+            self.X(2) = self.X(2) + self.v*sin(self.X(3))*self.dt;
+            self.X(3) = self.X(3) + self.om*self.dt;
+        end
+        
+        function self = setTarget(self,xt,yt)
+            self.Xd = [xt; yt];
+        end
+        
+        function self = calculateForce(self)
+            % Determine the error between the desired position and
+            % estimated position
+            raw_err = self.Xd - self.Xe(1:2);
+            self.error(1) = sqrt(raw_err(1)^2+raw_err(2)^2);
+            self.error(2) = wrapToPi(raw_err(3));
+            
+            % Get the desired angle from the angular controller
+            force = self.linear_ctrl.PID(self.error(1));
+            tau = self.angular_ctrl.PID(self.error(2));
+            
+            % Determine the controls to the motors using a mixing matrix
+            self.u = [self.w/2, -self.w/2; 1, 1]\[tau; force];
+        end
+        
+        function self = propagateDynamics(self)
+            % Unpack state and control inputs
+            x = self.X(1);
+            y = self.X(2);
+            th = self.X(3);
+            fl = self.u(1);
+            fr = self.u(2);
+            
+            % All I need to do is calculate the derivative so I can
+            % multiply it by the time step and add it to my current state.
+            % I need to be sure to add noise in as well.
+            % Necessary properties include mass and moment of inertia.
+            % I just want to use simple dynamics here--nothing too fancy.
+            vdot = 1/self.m*((fl+fr)-self.drag*v); % v needs to be defined somewhere.
+            zddot = 1/self.mt*(-(fl+fr)*sin(theta)-self.mu*zdot);
+            hddot = 1/self.mt*((fl+fr)*cos(theta)-self.mt*self.g);
+            thetaddot = 1/(self.Jc+2*self.mr*self.d^2)*(self.d*(fr-fl));
+            
+            % build xdot and return
+            xdot = [thetadot; zdot; hdot; thetaddot; zddot; hddot];
+        end
+        
+        function self = updateStateEstimate(self)
+            % This will eventually involve a Kalman filter
+            self.Xe = self.X;
+        end
+        
+        function self = animate(self)
             % Unpack state
             x = self.X(1);
             y = self.X(2);
             th = self.X(3);
             
             % Determine plotting points
-            box_points = [-w/2,w/2,w/2,-w/2;
-                          -h/2,-h/2,h/2,h/2];
-            line_points = [-w/4,-w/4,0,w/4,w/4,0;
-                           -h/4,0,h/3,0,-h/4,0];
+            box_points = [-self.h/2,-self.h/2,self.h/2,self.h/2;
+                          -self.w/2,self.w/2,self.w/2,-self.w/2];
+            line_points = [-self.h/4,0,self.h/3,0,-self.h/4,0;
+                           -self.w/4,-self.w/4,0,self.w/4,self.w/4,0];
             R = [cos(th), -sin(th); sin(th), cos(th)];
             rot_box = [x;y]+R*box_points;
             rot_line = [x;y]+R*line_points;
@@ -31,19 +158,20 @@ classdef UAV < handle
             % Plot the UAV
             if isempty(self.plotHandles)
                 % On the first call, plot the ground controller
-                fill([-w/2,w/2,w/2,-w/2],[-h/2,-h/2,h/2,h/2],...
+                fill([-self.w/2,self.w/2,self.w/2,-self.w/2],...
+                    [-self.h/2,-self.h/2,self.h/2,self.h/2],...
                       [0.2039,0.3647,0.6627]);
-                fill([-w/4,-w/4,0,w/4,w/4,0],...
-                    [h/4,0,-h/3,0,h/4,0],'k');
-                plot([-w/2,w/2],[-h/2,h/2],'k','LineWidth',2);
-                plot([-w/2,w/2],[h/2,-h/2],'k','LineWidth',2);
-                scatter(0,h/3,15,'ko','filled')
+                hold on;
+                fill([-self.w/4,-self.w/4,0,self.w/4,self.w/4,0],...
+                    [self.h/4,0,-self.h/3,0,self.h/4,0],'k');
+                plot([-self.w/2,self.w/2],[-self.h/2,self.h/2],'k');
+                plot([-self.w/2,self.w/2],[self.h/2,-self.h/2],'k');
+                scatter(0,self.h/3,15,'ko','filled')
 
                 % Setup the UAV plot
                 self.plotHandles = gobjects(1,2);
                 self.plotHandles(1) = fill(rot_box(1,:),rot_box(2,:),...
                     [0.2039,0.3647,0.6627]);
-                hold on;
                 self.plotHandles(2) = fill(rot_line(1,:),rot_line(2,:),'k');
             else
                 % Update the UAV plot
@@ -52,9 +180,6 @@ classdef UAV < handle
                 self.plotHandles(2).XData = rot_line(1,:);
                 self.plotHandles(2).YData = rot_line(2,:);
             end
-        end
-        function self = plot_self(self)
-            
         end
     end
 end

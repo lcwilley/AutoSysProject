@@ -6,10 +6,16 @@
 %  agent.                                        %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+P.dt = 0.1;
+
 P_uav.x0 = 0;
 P_uav.y0 = 0;
 P_uav.th0 = 0;
 P_uav.th_max = 0.1;
+P_uav.xd = 0;
+P_uav.yd = 10;
+P_uav.w = 1;
+P_uav.h = 0.5;
 % We assume the UAV controller is always located at 0,0
 
 P_ally1.x0 = 3;
