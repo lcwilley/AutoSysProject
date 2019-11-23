@@ -3,11 +3,15 @@
 % Authors: Carsten Christensen and Landon Willey %
 % Date: 31 Oct 2019                              %
 % Purpose: Initializes starting data for each    %
-%  agent.                                        %
+%  agent, creating a struct for each unit with   %
+%  all relevant data necessary for the agent to  %
+%  operate.                                      %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% Simulation time step
 P.dt = 0.1;
 
+% UAV parameters
 P_uav.x0 = 0;
 P_uav.y0 = 0;
 P_uav.th0 = 0;
@@ -19,8 +23,11 @@ P_uav.h = 0.5;
 P_uav.sig_r = 0.1;
 P_uav.sig_b = 0.05;
 P_uav.alph = [0.1 0.1];
+P_uav.v_limit = 2; % m/s
+P_uav.om_limit = pi/2; % rad/s
 % We assume the UAV controller is always located at 0,0
 
+% Allied unit parameters
 P_ally1.x0 = 3;
 P_ally1.y0 = 2;
 P_ally1.th0 = pi/5;
@@ -28,6 +35,7 @@ P_ally2.x0 = -3;
 P_ally2.y0 = 2;
 P_ally2.th0 = -pi/5;
 
+% Enemy unit parameters
 P_enemy1.x0 = 5;
 P_enemy1.y0 = 10;
 P_enemy1.th0 = 2*pi/3;

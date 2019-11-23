@@ -5,12 +5,28 @@ classdef enemy_unit < handle
     end
     methods
         function self = enemy_unit(P)
+        % An allied unit object that contains the position and animation
+        % data.
+            
+            % Store the agent's initial position
             self.X = [P.x0;
                       P.y0;
                       P.th0];
+                  
+            % Animate the agent
             self.animate();
         end
+        
+        function self = moveAgent(self)
+            % Moves the agent based on the control policy
+            
+            
+        end
+        
         function self = animate(self)
+            % Animates the agent on the current figure.
+            
+            % Initialize agent dimensions
             w = 0.5;
             h = 0.5;
             

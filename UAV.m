@@ -3,7 +3,7 @@ classdef UAV < handle
         % State variables
         X % UAV state
         Xe % Estimated UAV state
-        Xd % Desired UAV position
+        Xd % Desired UAV state
         
         % State estimation variables
         EKF_pos % EKF class to calculate and return estimated position
@@ -11,7 +11,7 @@ classdef UAV < handle
         
         % Plotting variables
         plotHandles % UAV plot handles
-        w % UAV width -- also used in the controller
+        w % UAV width -- also used in the force controller
         h % UAV height
         
         % Controller variables
@@ -22,90 +22,138 @@ classdef UAV < handle
         kp % Position gain
         ki % Integrator gain
         limit % Force limit--assumed symmetric
-        v_limit
-        th_limit
         linear_ctrl % PID controller acting on the distance
         angular_ctrl % PID controller acting on the heading
         dt % Time step
+        % For velocity-only commands, we set limits as well
+        v_limit % Commanded linear velocity limit
+        om_limit % Commanded angular velocity limit
         
         % UAV dynamics properties
         m % mass
         J % moment of inertia
-        v
-        om
         drag % drag coefficient
+        % For velocity-only commands
+        v % Linear velocity
+        om % Angular velocity
     end
     methods
         function self = UAV(P,allies,dt)
+        % A UAV object containing the relevant dyanmics, state estimates, and
+        % animations.
+        % Uses an EKF to estimate position, and velocity commands to update
+        % the dynamics, saturating the linear and angular velocities
+        % according to defined limits.
+        % Takes as arguments:
+        % - A struct containing UAV properties
+        % - An array of allied units that may be used to estimate position
+        % - The length of the simulation time step
+        
+            %%% State Variables %%%
+            % Initialize UAV state
             self.X = [P.x0;
                       P.y0;
                       P.th0];
+            % Initialize EKF to estimate UAV state
             self.EKF_pos = EKalFilt(self.X,eye(3),P.sig_r,P.sig_b,...
                 P.alph,dt);
+            self.Xe = self.EKF_pos.mu;
+            % Store alies for use in position estimation
             self.allies = allies;
+            
+            %%% Animation Variables %%%
+            % Store shape property variables
             self.w = P.w;
             self.h = P.h;
-            self.Xe = self.EKF_pos.mu;
+            % Draw the UAV in its initial state
             self.animate();
+            
+            %%% Control Variables %%%
+            % Set initial desired position
             self.Xd = [P.xd;
                        P.yd];
-            self.th_limit = pi/2; % rad/s
-            self.v_limit = 2; %m/s
+            % Initialize command limits
+            self.v_limit = P.v_limit;
+            self.om_limit = P.om_limit;
+            % Store the time step size
             self.dt = dt;
-            self.integrator = 0.0;
+            % The following initialized unused force control parameters
+%             self.integrator = 0.0;
 %             self.linear_ctrl = PIDControl(P.kp,P.ki,P.kd,P.limit,P.beta,dt);
 %             self.angular_ctrl = PIDControl(P.kp,P.ki,P.kd,P.limit,P.beta,dt);
         end
         
         function self = move_to_target(self)
-            % Using the defined target position, moves the UAV toward the
-            % goal position
+            % Using the previously defined target position, moves the UAV
+            % toward the goal position, updating both the state and the
+            % state estimation.
             
-            % Determine the required forces
+            % Determine the required forces or velocities
 %             self.calculateForce();
-            self.skipToVelocity();
+            self.calculateVelocity();
+            
+            % Update the dynamics based on the commanded input
             self.updateDynamics();
             
             % Update the estimated position
             self.updateStateEstimate();
         end
         
-        function self = skipToVelocity(self)
+        function self = calculateVelocity(self)
             % Calculates the required angular and linear velocity to reach
             % the goal location
+            
+            % Calculate the x, y, and theta error between the UAV's
+            % estimated position and the desired location
             raw_err = self.Xd - self.Xe(1:2);
             raw_err(3) = atan2(self.Xd(2)-self.Xe(2),...
                 self.Xd(1)-self.Xe(1))-self.Xe(3);
+            
+            % Convert error into range and bearing values
             self.error(1) = sqrt(raw_err(1)^2+raw_err(2)^2);
+            % Ignore angular error when near the desired position
             if self.error(1) > 0.01
                 self.error(2) = wrap_angle(raw_err(3));
             else
                 self.error(2) = 0;
             end
             
+            % Calculate the linear and angular velocity commands,
+            % saturating the output when necessary
             if self.error(1) < self.v_limit * self.dt
                 self.v = self.error(1);
             else
                 self.v = self.v_limit;
             end
-            if self.error(2) < self.th_limit * self.dt
+            if self.error(2) < self.om_limit * self.dt
                 self.om = self.error(2);
             else
-                self.om = self.th_limit;
+                self.om = self.om_limit;
             end
         end
         
         function self = updateDynamics(self)
+            % Updates the UAV state based on the current state and the
+            % commanded input velocities
+            
             self.X(1) = self.X(1) + self.v*cos(self.X(3))*self.dt;
             self.X(2) = self.X(2) + self.v*sin(self.X(3))*self.dt;
             self.X(3) = self.X(3) + self.om*self.dt;
         end
         
         function self = setTarget(self,xt,yt)
+            % Public function that allows for modification of desired x and
+            % y target positions. As part of the project, this should
+            % eventually be overwritten with an algorithm that determines
+            % the goal position based on the estimated enemy positions.
             self.Xd = [xt; yt];
         end
         
         function self = calculateForce(self)
+            % Uses the error between the UAV state and the desired state to
+            % calculate the necessary forces to allow the UAV to reach the
+            % state
+            
             % Determine the error between the desired position and
             % estimated position
             raw_err = self.Xd - self.Xe(1:2);
@@ -121,6 +169,11 @@ classdef UAV < handle
         end
         
         function self = propagateDynamics(self)
+            % Similar to updateDynamics, this updates the UAV state based
+            % on commanded inputs; however, it assumes the inputs to be
+            % force-based rather than velocity-based, and uses equations of
+            % motion to more realistically model UAV dynamics.
+            
             % Unpack state and control inputs
             x = self.X(1);
             y = self.X(2);
@@ -143,6 +196,9 @@ classdef UAV < handle
         end
         
         function self = updateStateEstimate(self)
+            % Using an EKF and the positions of the allied units, updates
+            % the UAV's belief of its current state.
+            
             % Get location of the allied units
             allied_est = [zeros(2,1), self.allies.getGPS()];
             allied_pos = [zeros(2,1), self.allies.getPos()];
@@ -158,6 +214,8 @@ classdef UAV < handle
         end
         
         function self = animate(self)
+            % Animates the UAV on the current figure.
+            
             % Unpack state
             x = self.X(1);
             y = self.X(2);
