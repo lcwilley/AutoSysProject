@@ -15,12 +15,12 @@ clc
 agent_params
 
 % Create instances of each agent using corresponding constructors
-clf;
-uav = UAV(P_uav,P.dt);
+clf; % Plots are setup in agent constructors, so clear any pre-existing data
 ally(1) = allied_unit(P_ally1);
 ally(2) = allied_unit(P_ally2);
 enemy(1) = enemy_unit(P_enemy1);
 enemy(2) = enemy_unit(P_enemy2);
+uav = UAV(P_uav,ally,P.dt);
 axis([-7,7,-4,12]);
 axis equal
 

@@ -16,6 +16,9 @@ P_uav.xd = 0;
 P_uav.yd = 10;
 P_uav.w = 1;
 P_uav.h = 0.5;
+P_uav.sig_r = 0.1;
+P_uav.sig_b = 0.05;
+P_uav.alph = [0.1 0.1];
 % We assume the UAV controller is always located at 0,0
 
 P_ally1.x0 = 3;

@@ -5,6 +5,10 @@ classdef UAV < handle
         Xe % Estimated UAV state
         Xd % Desired UAV position
         
+        % State estimation variables
+        EKF_pos % EKF class to calculate and return estimated position
+        allies % Allied units to be able to return current GPS locations
+        
         % Plotting variables
         plotHandles % UAV plot handles
         w % UAV width -- also used in the controller
@@ -32,13 +36,16 @@ classdef UAV < handle
         drag % drag coefficient
     end
     methods
-        function self = UAV(P,dt)
+        function self = UAV(P,allies,dt)
             self.X = [P.x0;
                       P.y0;
                       P.th0];
+            self.EKF_pos = EKalFilt(self.X,eye(3),P.sig_r,P.sig_b,...
+                P.alph,dt);
+            self.allies = allies;
             self.w = P.w;
             self.h = P.h;
-            self.Xe = self.X;
+            self.Xe = self.EKF_pos.mu;
             self.animate();
             self.Xd = [P.xd;
                        P.yd];
@@ -71,7 +78,7 @@ classdef UAV < handle
                 self.Xd(1)-self.Xe(1))-self.Xe(3);
             self.error(1) = sqrt(raw_err(1)^2+raw_err(2)^2);
             if self.error(1) > 0.01
-                self.error(2) = wrapToPi(raw_err(3));
+                self.error(2) = wrap_angle(raw_err(3));
             else
                 self.error(2) = 0;
             end
@@ -103,7 +110,7 @@ classdef UAV < handle
             % estimated position
             raw_err = self.Xd - self.Xe(1:2);
             self.error(1) = sqrt(raw_err(1)^2+raw_err(2)^2);
-            self.error(2) = wrapToPi(raw_err(3));
+            self.error(2) = wrap_angle(raw_err(3));
             
             % Get the desired angle from the angular controller
             force = self.linear_ctrl.PID(self.error(1));
@@ -136,8 +143,18 @@ classdef UAV < handle
         end
         
         function self = updateStateEstimate(self)
-            % This will eventually involve a Kalman filter
-            self.Xe = self.X;
+            % Get location of the allied units
+            allied_est = [zeros(2,1), self.allies.getGPS()];
+            allied_pos = [zeros(2,1), self.allies.getPos()];
+            
+            % Create measurement data for allied units
+            del = allied_pos - self.X(1:2);
+            obs = [sqrt(del(1,:).^2 + del(2,:).^2);
+                wrap_angle(atan2(del(2,:),del(1,:))-self.X(3))];
+            
+            % Update the EKF based on the estimated allied positions and
+            % the measurement data
+            self.Xe = self.EKF_pos.update([self.v; self.om],allied_est,obs);
         end
         
         function self = animate(self)

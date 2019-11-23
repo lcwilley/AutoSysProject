@@ -10,6 +10,20 @@ classdef allied_unit < handle
                       P.th0];
             self.animate();
         end
+        function est_pos = getGPS(self)
+            % This allows for the function to be called by an agent array
+            est_pos = zeros(2,length(self));
+            for i = 1:length(self)
+                est_pos(:,i) = self(i).X(1:2) + rand(2,1)*3;
+            end
+        end
+        function pos = getPos(self)
+            % This allows for the function to be called by an agent array
+            pos = zeros(2,length(self));
+            for i = 1:length(self)
+                pos(:,i) = self(i).X(1:2);
+            end
+        end
         function self = animate(self)
             w = 1;
             h = 0.5;
