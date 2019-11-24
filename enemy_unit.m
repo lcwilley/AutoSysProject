@@ -2,9 +2,11 @@ classdef enemy_unit < handle
     properties
         X % Unit state
         plotHandles % Unit plot handles
+        w % Plotting width
+        h % Plotting height
     end
     methods
-        function self = enemy_unit(P)
+        function self = enemy_unit(P,Ps)
         % An allied unit object that contains the position and animation
         % data.
             
@@ -14,6 +16,8 @@ classdef enemy_unit < handle
                       P.th0];
                   
             % Animate the agent
+            self.w = Ps.h;
+            self.h = Ps.h;
             self.animate();
         end
         
@@ -26,20 +30,16 @@ classdef enemy_unit < handle
         function self = animate(self)
             % Animates the agent on the current figure.
             
-            % Initialize agent dimensions
-            w = 0.5;
-            h = 0.5;
-            
             % Unpack state
             x = self.X(1);
             y = self.X(2);
             th = self.X(3);
             
             % Determine plotting points
-            box_points = [-w/2,0,w/2,0; 0,h/2,0,-h/2];
-            line1_points = [-w/4,w/4; -h/4,h/4];
-            line2_points = [-w/4,w/4; h/4,-h/4];
-            dot_points = [0;h/3];
+            box_points = [-self.w/2,0,self.w/2,0; 0,self.h/2,0,-self.h/2];
+            line1_points = [-self.w/4,self.w/4; -self.h/4,self.h/4];
+            line2_points = [-self.w/4,self.w/4; self.h/4,-self.h/4];
+            dot_points = [0;self.h/3];
             
             R = [cos(th), -sin(th); sin(th), cos(th)];
             rot_box = [x;y]+R*box_points;

@@ -2,9 +2,11 @@ classdef allied_unit < handle
     properties
         X % Unit state
         plotHandles % Unit plot handles
+        w % Plotting width
+        h % Plotting height
     end
     methods
-        function self = allied_unit(P)
+        function self = allied_unit(P,Ps)
         % An allied unit object that contains the position and animation
         % data. Includes functions to return the agent's position and a GPS
         % estimation of the agent's position.
@@ -15,6 +17,8 @@ classdef allied_unit < handle
                       P.th0];
                   
             % Animate the agent
+            self.w = Ps.w;
+            self.h = Ps.h;
             self.animate();
         end
         
@@ -52,21 +56,17 @@ classdef allied_unit < handle
         function self = animate(self)
             % Animates the agent on the current figure.
             
-            % Initialize agent dimensions
-            w = 1;
-            h = 0.5;
-            
             % Unpack state
             x = self.X(1);
             y = self.X(2);
             th = self.X(3);
             
             % Determine plotting points
-            box_points = [-w/2,w/2,w/2,-w/2;
-                          -h/2,-h/2,h/2,h/2];
-            line1_points = [-w/2,w/2;-h/2,h/2];
-            line2_points = [-w/2,w/2;h/2,-h/2];
-            dot_points = [0;h/3];
+            box_points = [-self.w/2,self.w/2,self.w/2,-self.w/2;
+                          -self.h/2,-self.h/2,self.h/2,self.h/2];
+            line1_points = [-self.w/2,self.w/2;-self.h/2,self.h/2];
+            line2_points = [-self.w/2,self.w/2;self.h/2,-self.h/2];
+            dot_points = [0;self.h/3];
             
             R = [cos(th), -sin(th); sin(th), cos(th)];
             rot_box = [x;y]+R*box_points;

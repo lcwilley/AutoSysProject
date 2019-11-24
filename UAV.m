@@ -40,7 +40,7 @@ classdef UAV < handle
         om % Angular velocity
     end
     methods
-        function self = UAV(P,allies,dt)
+        function self = UAV(P,Ps,allies,dt)
         % A UAV object containing the relevant dyanmics, state estimates, and
         % animations.
         % Uses an EKF to estimate position, and velocity commands to update
@@ -65,8 +65,8 @@ classdef UAV < handle
             
             %%% Animation Variables %%%
             % Store shape property variables
-            self.w = P.w;
-            self.h = P.h;
+            self.w = Ps.w;
+            self.h = Ps.h;
             self.box_points = [-self.h/2,-self.h/2,self.h/2,self.h/2;
                                -self.w/2,self.w/2,self.w/2,-self.w/2];
             self.sym_points = [-self.h/4,0,self.h/3,0,-self.h/4,0;
@@ -265,7 +265,7 @@ classdef UAV < handle
                     rot_box_e(2,:),[0.2039,0.3647,0.6627]);
                 self.plotHandles(4) = fill(rot_sym_e(1,:),...
                     rot_sym_e(2,:),'k');
-                alpha(self.plotHandles(3:4),0.3);
+                alpha(self.plotHandles(3:4),0.5);
             else
                 % Update the UAV plot
                 self.plotHandles(1).XData = rot_box(1,:);
