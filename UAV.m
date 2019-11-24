@@ -8,6 +8,11 @@ classdef UAV < handle
         % State estimation variables
         EKF_pos % EKF class to calculate and return estimated position
         allies % Allied units to be able to return current GPS locations
+        enemies % Enemy units to allow for tracking
+        
+        % Noise variables
+        alph % Motion noise
+        Q % Measurement noise
         
         % Plotting variables
         plotHandles % UAV plot handles
@@ -40,7 +45,7 @@ classdef UAV < handle
         om % Angular velocity
     end
     methods
-        function self = UAV(P,Ps,allies,dt)
+        function self = UAV(P,Ps,allies,enemies,dt)
         % A UAV object containing the relevant dyanmics, state estimates, and
         % animations.
         % Uses an EKF to estimate position, and velocity commands to update
@@ -58,10 +63,15 @@ classdef UAV < handle
                       P.th0];
             % Initialize EKF to estimate UAV state
             self.EKF_pos = EKalFilt(self.X,eye(3),P.sig_r,P.sig_b,...
-                P.alph,dt);
+                P.alph,dt,length(enemies));
             self.Xe = self.EKF_pos.mu;
-            % Store alies for use in position estimation
+            % Initialize noise variables
+            self.alph = P.alph;
+            self.Q = [P.sig_r; P.sig_b];
+            % Store allies for use in position estimation and enemies for
+            % tracking
             self.allies = allies;
+            self.enemies = enemies;
             
             %%% Animation Variables %%%
             % Store shape property variables
@@ -103,6 +113,25 @@ classdef UAV < handle
             
             % Update the estimated position
             self.updateStateEstimate();
+        end
+        
+        function self = track(self)
+            % Creates measurements to the enemy units and estimates their
+            % position
+            
+            % Get location of the enemy units
+            enemy_pos = self.enemies.getPos();
+            
+            % Create measurement data for enemy units
+            del = enemy_pos - self.X(1:2);
+            obs = [sqrt(del(1,:).^2 + del(2,:).^2);
+                wrap_angle(atan2(del(2,:),del(1,:))-self.X(3))];
+            
+            % Add noise to the measurement data
+            obs = obs + self.Q.*rand(size(obs));
+            
+            % Update estimates based on measurement data
+            self.EKF_pos.track(obs);
         end
         
         function self = calculateVelocity(self)
@@ -213,6 +242,9 @@ classdef UAV < handle
             del = allied_pos - self.X(1:2);
             obs = [sqrt(del(1,:).^2 + del(2,:).^2);
                 wrap_angle(atan2(del(2,:),del(1,:))-self.X(3))];
+            
+            % Add noise to the measurement data
+            obs = obs + self.Q.*rand(size(obs));
             
             % Update the EKF based on the estimated allied positions and
             % the measurement data

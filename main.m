@@ -23,7 +23,7 @@ ally(2) = allied_unit(P_ally2,P_size);
 enemy(1) = enemy_unit(P_enemy1,P_size);
 enemy(2) = enemy_unit(P_enemy2,P_size);
 % Create the UAV (also creates stationary ground controller)
-uav = UAV(P_uav,P_size,ally,P.dt);
+uav = UAV(P_uav,P_size,ally,enemy,P.dt);
 % Format visualization
 axis([-70,70,-20,120]);
 axis equal
@@ -39,6 +39,7 @@ target_plot = scatter(target_pt(1),target_pt(2),'go','filled');
 for t = 1:2000
     % Have the UAV takea  step toward its goal position
     uav.move_to_target();
+    uav.track();
     % Update the UAV animation
     uav.animate();
     % Every 100 time steps, change the target position

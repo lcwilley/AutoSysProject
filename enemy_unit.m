@@ -27,6 +27,18 @@ classdef enemy_unit < handle
             
         end
         
+        function pos = getPos(self)
+            % Called by either an individual agent or an array of similar
+            % agents. Returns the agent's actual position.
+            
+            % Preallocate the return value and loop through self to account
+            % for the case when this function is called by an agent array
+            pos = zeros(2,length(self));
+            for i = 1:length(self)
+                pos(:,i) = self(i).X(1:2);
+            end
+        end
+        
         function self = animate(self)
             % Animates the agent on the current figure.
             
