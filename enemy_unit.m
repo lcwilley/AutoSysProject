@@ -1,13 +1,9 @@
-classdef enemy_unit < handle
+classdef enemy_unit < ground_unit
     properties
-        X % Unit state
-        plotHandles % Unit plot handles
-        w % Plotting width
-        h % Plotting height
     end
     methods
         function self = enemy_unit(P,Ps)
-        % An allied unit object that contains the position and animation
+        % An enemy unit object that contains the position and animation
         % data.
             
             % Store the agent's initial position
@@ -25,18 +21,6 @@ classdef enemy_unit < handle
             % Moves the agent based on the control policy
             
             
-        end
-        
-        function pos = getPos(self)
-            % Called by either an individual agent or an array of similar
-            % agents. Returns the agent's actual position.
-            
-            % Preallocate the return value and loop through self to account
-            % for the case when this function is called by an agent array
-            pos = zeros(2,length(self));
-            for i = 1:length(self)
-                pos(:,i) = self(i).X(1:2);
-            end
         end
         
         function self = animate(self)

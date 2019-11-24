@@ -26,7 +26,7 @@ P_uav.sig_r = 0.1;
 P_uav.sig_b = 0.05;
 P_uav.alph = [0.1 0.1];
 P_uav.v_limit = 2; % m/s
-P_uav.om_limit = pi/2; % rad/s
+P_uav.om_limit = pi/4; % rad/s
 % We assume the UAV controller is always located at 0,0
 
 % Allied unit parameters

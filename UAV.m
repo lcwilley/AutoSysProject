@@ -155,16 +155,20 @@ classdef UAV < handle
             
             % Calculate the linear and angular velocity commands,
             % saturating the output when necessary
-            if self.error(1) < self.v_limit * self.dt
-                self.v = self.error(1);
+            if abs(self.error(1)/self.dt) < self.v_limit
+                self.v = self.error(1) / self.dt;
             else
                 self.v = self.v_limit;
             end
-            if self.error(2) < self.om_limit * self.dt
-                self.om = self.error(2);
+            if abs(self.error(2)/self.dt) < self.om_limit
+                self.om = self.error(2) / self.dt;
             else
-                self.om = self.om_limit;
+                self.om = sign(self.error(2))*self.om_limit;
             end
+            
+            % Add motion noise
+            self.v = self.v + self.alph(1)*rand();
+            self.om = self.om + self.alph(2)*rand();
         end
         
         function self = updateDynamics(self)
