@@ -13,6 +13,8 @@ classdef UAV < handle
         plotHandles % UAV plot handles
         w % UAV width -- also used in the force controller
         h % UAV height
+        box_points % Points to plot the UAV body
+        sym_points % Points to plot the UAV symbol
         
         % Controller variables
         u % commanded force input
@@ -65,6 +67,10 @@ classdef UAV < handle
             % Store shape property variables
             self.w = P.w;
             self.h = P.h;
+            self.box_points = [-self.h/2,-self.h/2,self.h/2,self.h/2;
+                               -self.w/2,self.w/2,self.w/2,-self.w/2];
+            self.sym_points = [-self.h/4,0,self.h/3,0,-self.h/4,0;
+                                -self.w/4,-self.w/4,0,self.w/4,self.w/4,0];
             % Draw the UAV in its initial state
             self.animate();
             
@@ -214,21 +220,26 @@ classdef UAV < handle
         end
         
         function self = animate(self)
-            % Animates the UAV on the current figure.
+            % Animates the UAV true state and estimated state on the
+            % current figure.
             
             % Unpack state
             x = self.X(1);
             y = self.X(2);
             th = self.X(3);
             
+            % Unpack estimated state
+            xe = self.Xe(1);
+            ye = self.Xe(2);
+            the = self.Xe(3);
+            
             % Determine plotting points
-            box_points = [-self.h/2,-self.h/2,self.h/2,self.h/2;
-                          -self.w/2,self.w/2,self.w/2,-self.w/2];
-            line_points = [-self.h/4,0,self.h/3,0,-self.h/4,0;
-                           -self.w/4,-self.w/4,0,self.w/4,self.w/4,0];
             R = [cos(th), -sin(th); sin(th), cos(th)];
-            rot_box = [x;y]+R*box_points;
-            rot_line = [x;y]+R*line_points;
+            rot_box = [x;y]+R*self.box_points;
+            rot_sym = [x;y]+R*self.sym_points;
+            Re = [cos(the), -sin(the); sin(the), cos(the)];
+            rot_box_e = [xe;ye]+Re*self.box_points;
+            rot_sym_e = [xe;ye]+Re*self.sym_points;
             
             % Plot the UAV
             if isempty(self.plotHandles)
@@ -244,16 +255,27 @@ classdef UAV < handle
                 scatter(0,self.h/3,15,'ko','filled')
 
                 % Setup the UAV plot
-                self.plotHandles = gobjects(1,2);
+                self.plotHandles = gobjects(1,4);
+                % Plot the true state
                 self.plotHandles(1) = fill(rot_box(1,:),rot_box(2,:),...
                     [0.2039,0.3647,0.6627]);
-                self.plotHandles(2) = fill(rot_line(1,:),rot_line(2,:),'k');
+                self.plotHandles(2) = fill(rot_sym(1,:),rot_sym(2,:),'k');
+                % Plot the estimated state
+                self.plotHandles(3) = fill(rot_box_e(1,:),...
+                    rot_box_e(2,:),[0.2039,0.3647,0.6627]);
+                self.plotHandles(4) = fill(rot_sym_e(1,:),...
+                    rot_sym_e(2,:),'k');
+                alpha(self.plotHandles(3:4),0.3);
             else
                 % Update the UAV plot
                 self.plotHandles(1).XData = rot_box(1,:);
                 self.plotHandles(1).YData = rot_box(2,:);
-                self.plotHandles(2).XData = rot_line(1,:);
-                self.plotHandles(2).YData = rot_line(2,:);
+                self.plotHandles(2).XData = rot_sym(1,:);
+                self.plotHandles(2).YData = rot_sym(2,:);
+                self.plotHandles(3).XData = rot_box_e(1,:);
+                self.plotHandles(3).YData = rot_box_e(2,:);
+                self.plotHandles(4).XData = rot_sym_e(1,:);
+                self.plotHandles(4).YData = rot_sym_e(2,:);
             end
         end
     end
