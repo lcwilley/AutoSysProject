@@ -19,7 +19,7 @@ classdef enemy_unit < ground_unit
         
         function self = moveAgent(self)
             % Moves the agent based on the control policy
-            
+            demo = 0;
             
         end
         
