@@ -7,7 +7,7 @@ classdef ground_unit < handle
     end
     methods
         function self = ground_unit()
-        % An ground unit superclass to help in the creation of enemy and
+        % A ground unit superclass to help in the creation of enemy and
         % allied units
         end
         

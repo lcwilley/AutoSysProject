@@ -4,6 +4,7 @@ classdef UAV < handle
         X % UAV state
         Xe % Estimated UAV state
         Xd % Desired UAV state
+        enemy_X % estimated position of enemies
         
         % State estimation variables
         EKF_pos % EKF class to calculate and return estimated position
@@ -65,6 +66,7 @@ classdef UAV < handle
             self.EKF_pos = EKalFilt(self.X,eye(3),P.sig_r,P.sig_b,...
                 P.alph,dt,length(enemies));
             self.Xe = self.EKF_pos.mu;
+            self.enemy_X = self.EKF_pos.muE;
             % Initialize noise variables
             self.alph = P.alph;
             self.Q = [P.sig_r; P.sig_b];
@@ -131,7 +133,7 @@ classdef UAV < handle
             obs = obs + self.Q.*rand(size(obs));
             
             % Update estimates based on measurement data
-            self.EKF_pos.track(obs);
+            self.enemy_X = self.EKF_pos.track(obs);
         end
         
         function self = calculateVelocity(self)
@@ -180,12 +182,16 @@ classdef UAV < handle
             self.X(3) = self.X(3) + self.om*self.dt;
         end
         
-        function self = setTarget(self,xt,yt)
+        function self = setTarget(self)
             % Public function that allows for modification of desired x and
             % y target positions. As part of the project, this should
             % eventually be overwritten with an algorithm that determines
             % the goal position based on the estimated enemy positions.
-            self.Xd = [xt; yt];
+            if all(all(isnan(self.enemy_X)))
+                self.Xd = self.X(1:2);
+            else
+                self.Xd = self.enemy_X(:,randi(size(self.enemy_X,2)));%[xt; yt];
+            end
         end
         
         function self = calculateForce(self)

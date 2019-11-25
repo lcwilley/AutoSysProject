@@ -1,5 +1,38 @@
 classdef allied_unit < ground_unit
     properties
+        % State variables
+        Xd % Desired enemy squad state
+        
+        % Noise variables
+        alph % Motion noise
+        Q % Measurement noise
+        
+        % Plotting variables
+        box_points % Points to plot the UAV body
+        sym_points % Points to plot the UAV symbol
+        
+        % Controller variables
+        u % commanded force input
+        integrator % Current value of the integrator
+        error % Current error (distance and bearing)
+        error_1 % Previous error (distance and bearing)
+        kp % Position gain
+        ki % Integrator gain
+        limit % Force limit--assumed symmetric
+        linear_ctrl % PID controller acting on the distance
+        angular_ctrl % PID controller acting on the heading
+        dt % Time step
+        % For velocity-only commands, we set limits as well
+        v_limit % Commanded linear velocity limit
+        om_limit % Commanded angular velocity limit
+        
+        % enemy squad dynamics properties
+        m % mass
+        J % moment of inertia
+        drag % drag coefficient
+        % For velocity-only commands
+        v % Linear velocity
+        om % Angular velocity
     end
     methods
         function self = allied_unit(P,Ps)
@@ -16,6 +49,20 @@ classdef allied_unit < ground_unit
             self.w = Ps.w;
             self.h = Ps.h;
             self.animate();
+            
+%             %%% Control Variables %%%
+%             % Set initial desired position
+%             self.Xd = [P.xd;
+%                        P.yd];
+%             % Initialize command limits
+%             self.v_limit = P.v_limit;
+%             self.om_limit = P.om_limit;
+%             % Store the time step size
+%             self.dt = dt;
+%             % The following initialized unused force control parameters
+% %             self.integrator = 0.0;
+% %             self.linear_ctrl = PIDControl(P.kp,P.ki,P.kd,P.limit,P.beta,dt);
+% %             self.angular_ctrl = PIDControl(P.kp,P.ki,P.kd,P.limit,P.beta,dt);
         end
         
         function self = moveAgent(self)

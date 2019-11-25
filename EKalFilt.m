@@ -102,7 +102,12 @@ classdef EKalFilt < handle
             end
         end
         
-        function self = track(self, z)
+        function enemy_X = track(self, z)
+            self.track_enemy(z);
+            enemy_X = self.muE;
+        end
+        
+        function self = track_enemy(self, z)
             % Updates the UAV tracking estimates based on the measurements
             % taken and assuming a known data association
             % I think it would be cool later one to have it just pass in

@@ -41,8 +41,17 @@ P_ally2.th0 = -pi/5;
 P_enemy1.x0 = 50;
 P_enemy1.y0 = 100;
 P_enemy1.th0 = 2*pi/3;
+P_enemy1.xd = 0;
+P_enemy1.yd = 0;
+P_enemy1.v_limit = 2; % m/s
+P_enemy1.om_limit = pi/4; % rad/s
+
 P_enemy2.x0 = -50;
 P_enemy2.y0 = 100;
 P_enemy2.th0 = -2*pi/3;
+P_enemy2.xd = 0;
+P_enemy2.yd = 0;
+P_enemy2.v_limit = 2; % m/s
+P_enemy2.om_limit = pi/4; % rad/s
 
 
