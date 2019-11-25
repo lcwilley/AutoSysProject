@@ -96,7 +96,9 @@ classdef EKalFilt < handle
                 K = self.sig*H'/S;
 
                 % Update estimate
-                self.mu = self.mu + K*(z(:,i)-zhat);
+                error = z(:,i)-zhat;
+                error(2) = wrap_angle(error(2));
+                self.mu = self.mu + K*error;
                 self.mu(3) = wrap_angle(self.mu(3));
                 self.sig = (eye(length(self.sig))-K*H)*self.sig;
             end
@@ -144,11 +146,22 @@ classdef EKalFilt < handle
                         % Unpack enemy position
                         ex = self.muE(1,i);
                         ey = self.muE(2,i);
-
+                        
+                        % Come up with perturbed enemy positions
+                        ex = ex(ones(1,8)) + cos(0:pi/4:7*pi/4);
+                        ey = ey(ones(1,8)) + sin(0:pi/4:7*pi/4);
                         % Calculate the estimated measurement
-                        q = (ex - rx)^2 + (ey - ry)^2;
+                        q = (ex - rx).^2 + (ey - ry).^2;
                         zhat = [sqrt(q);
                             wrap_angle(atan2(ey-ry,ex-rx)-rth)];
+                        error = z(:,i) - zhat;
+                        error(2,:) = wrap_angle(error(2,:));
+                        rms_error = sqrt(error(1,:).^2+error(2,:).^2);
+                        [~,best_j] = min(rms_error);
+                        ex = ex(best_j);
+                        ey = ey(best_j);
+                        q = q(best_j);
+                        error = error(:,best_j);
 
                         % Calculate measurement Jacobian
                         H = [(ex-rx)/sqrt(q), (ey-ry)/sqrt(q);
@@ -159,8 +172,6 @@ classdef EKalFilt < handle
                         K = self.sigE(:,:,i)*H'/S;
 
                         % Update estimate
-                        error = z(:,i)-zhat;
-                        error(2) = wrap_angle(error(2));
                         self.muE(:,i) = self.muE(:,i) + K*error;
                         self.sigE(:,:,i) = (eye(2)-K*H)*self.sigE(:,:,i);
                     end

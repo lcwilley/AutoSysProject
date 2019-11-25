@@ -11,6 +11,7 @@
 clear
 clc
 
+rng(0); % Fix the random number generator for debugging
 % Load in parameters for the agents
 agent_params
 
@@ -30,46 +31,42 @@ axis equal
 
 % Main simulation loop
 % This will eventually be a while loop
-% Create a random target, and have the UAV move toward it
-% target_pt = [-50+rand*100,rand*100];
-target_pt_enemy1 = [-5+rand*50,rand*50];
-target_pt_enemy2 = [-5+rand*50,rand*50];
+% Create random targets for each enemy
+enemy_target_pts = [-50+rand(1,2)*100;rand(1,2)*100];
 uav.setTarget();
-enemy(1).setTarget(target_pt_enemy1(1),target_pt_enemy1(2));
-enemy(2).setTarget(target_pt_enemy2(1),target_pt_enemy2(2));
+enemy.setTarget(enemy_target_pts);
 % Plot the target on the map
-target_plot_enemy1 = scatter(target_pt_enemy1(1),target_pt_enemy1(2),'go','filled');
-target_plot_enemy2 = scatter(target_pt_enemy2(1),target_pt_enemy2(2),'gd','filled');
+target_plots = gobjects(1,2);
+target_plots(1) = scatter(enemy_target_pts(1,1),enemy_target_pts(2,1),...
+    'go','filled');
+target_plots(2) = scatter(enemy_target_pts(1,2),enemy_target_pts(2,2),...
+    'gd','filled');
 % Loop through the simulation
 for t = 1:2000
-    % Have the UAV takea  step toward its goal position
+    % Have the UAV move toward its goal position
     uav.move_to_target();
     uav.track();
-    if t == 1
-        uav.setTarget();
-    end
     % Update the UAV animation
     uav.animate();
     % Have the enemy squads take a step towards their goal position
-    enemy(1).move_to_target();
-    enemy(2).move_to_target();
+    enemy.move_to_target();
     % Update the enemy agent positions
-    enemy(1).animate();
-    enemy(2).animate();
+    enemy.animate();
     
-    % Every 100 time steps, change the target position
+    % Every 100 time steps, change the enemy target position
     if mod(t,200) == 0 && t ~= 2000
-%         target_pt = [-5+rand*50,rand*50];
-        target_pt_enemy1 = [-5+rand*50,rand*50];
-        target_pt_enemy2 = [-5+rand*50,rand*50];
-        uav.setTarget();
-        enemy(1).setTarget(target_pt_enemy1(1),target_pt_enemy1(2));
-        enemy(2).setTarget(target_pt_enemy2(1),target_pt_enemy2(2));
-        set(target_plot_enemy1,'XData',target_pt_enemy1(1),'YData',target_pt_enemy1(2));
-        set(target_plot_enemy2,'XData',target_pt_enemy2(1),'YData',target_pt_enemy2(2));
+        enemy_target_pts = [-50+rand(1,2)*100;rand(1,2)*100];
+        enemy.setTarget(enemy_target_pts);
+        set(target_plots(1),'XData',enemy_target_pts(1,1),...
+            'YData',enemy_target_pts(2,1));
+        set(target_plots(2),'XData',enemy_target_pts(1,2),...
+            'YData',enemy_target_pts(2,2));
     end
     % Pause for the visualization
     pause(0.001)
+    if t >= 345
+        pause(0);
+    end
 end
 
 

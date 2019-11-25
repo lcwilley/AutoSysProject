@@ -4,12 +4,15 @@ classdef UAV < handle
         X % UAV state
         Xe % Estimated UAV state
         Xd % Desired UAV state
-        enemy_X % estimated position of enemies
         
         % State estimation variables
         EKF_pos % EKF class to calculate and return estimated position
         allies % Allied units to be able to return current GPS locations
-        enemies % Enemy units to allow for tracking
+        
+        % Tracking variables
+        enemies % Enemy units to allow for measurements
+        enemy_X % Estimated position of enemies
+        current_target % The enemy currently being pursued by the UAV
         
         % Noise variables
         alph % Motion noise
@@ -67,6 +70,7 @@ classdef UAV < handle
                 P.alph,dt,length(enemies));
             self.Xe = self.EKF_pos.mu;
             self.enemy_X = self.EKF_pos.muE;
+            self.current_target = randi(size(self.enemy_X,2));
             % Initialize noise variables
             self.alph = P.alph;
             self.Q = [P.sig_r; P.sig_b];
@@ -134,6 +138,7 @@ classdef UAV < handle
             
             % Update estimates based on measurement data
             self.enemy_X = self.EKF_pos.track(obs);
+            self.setTarget();
         end
         
         function self = calculateVelocity(self)
@@ -190,7 +195,7 @@ classdef UAV < handle
             if all(all(isnan(self.enemy_X)))
                 self.Xd = self.X(1:2);
             else
-                self.Xd = self.enemy_X(:,randi(size(self.enemy_X,2)));%[xt; yt];
+                self.Xd = self.enemy_X(:,self.current_target);
             end
         end
         
