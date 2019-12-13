@@ -1,77 +1,50 @@
 classdef allied_unit < ground_unit
     properties
-        % State variables
-        Xd % Desired enemy squad state
-        
-        % Noise variables
-        alph % Motion noise
-        Q % Measurement noise
+        % Defined in ground_unit
+        % X % Unit state
+        % Xe % Estimated state
+        % Xd % Desired state
         
         % Plotting variables
-        box_points % Points to plot the UAV body
-        sym_points % Points to plot the UAV symbol
+        % plotHandles % Unit plot handles
+        % w % Plotting width
+        % h % Plotting height
         
-        % Controller variables
-        u % commanded force input
-        integrator % Current value of the integrator
-        error % Current error (distance and bearing)
-        error_1 % Previous error (distance and bearing)
-        kp % Position gain
-        ki % Integrator gain
-        limit % Force limit--assumed symmetric
-        linear_ctrl % PID controller acting on the distance
-        angular_ctrl % PID controller acting on the heading
-        dt % Time step
-        % For velocity-only commands, we set limits as well
-        v_limit % Commanded linear velocity limit
-        om_limit % Commanded angular velocity limit
+        % Control variables
+        % alph % Motion noise
+        % v % Linear velocity
+        % om % Angular velocity
+        % v_limit % Linear velocity limit
+        % om_limit % Angular velocity limit
+        % dt % Simulation time step
         
-        % enemy squad dynamics properties
-        m % mass
-        J % moment of inertia
-        drag % drag coefficient
-        % For velocity-only commands
-        v % Linear velocity
-        om % Angular velocity
+        myGPS % GPS class for measurement update
+        myEKF % EKF class for kalman filter state estimation
     end
     methods
-        function self = allied_unit(P,Ps)
+        function self = allied_unit(P,Pall)
         % An allied unit object that contains the position and animation
         % data. Includes functions to return the agent's position and a GPS
         % estimation of the agent's position.
+        
+            % Call the superclass constructor
+            self@ground_unit(P,Pall);
             
-            % Store the agent's initial position
-            self.X = [P.x0;
-                      P.y0;
-                      P.th0];
-                  
-            % Animate the agent
-            self.w = Ps.w;
-            self.h = Ps.h;
-            self.animate();
-            
-%             %%% Control Variables %%%
-%             % Set initial desired position
-%             self.Xd = [P.xd;
-%                        P.yd];
-%             % Initialize command limits
-%             self.v_limit = P.v_limit;
-%             self.om_limit = P.om_limit;
-%             % Store the time step size
-%             self.dt = dt;
-%             % The following initialized unused force control parameters
-% %             self.integrator = 0.0;
-% %             self.linear_ctrl = PIDControl(P.kp,P.ki,P.kd,P.limit,P.beta,dt);
-% %             self.angular_ctrl = PIDControl(P.kp,P.ki,P.kd,P.limit,P.beta,dt);
+            self.myGPS = GPS(self.dt);
+            self.myEKF = EKF_GPS(self.X,eye(3),self.alph,...
+                [0.4 0; 0 0.4],self.dt);
         end
         
-        function self = moveAgent(self)
-            % Moves the agent based on the control policy
-            
-            
+        function self = updateEstimate(self)
+        % Updates the agent's position using a Kalman Filter and a GPS
+        % measurement
+            self.myEKF.predict(self.u);
+            GPSest = self.myGPS.getGPS(self.X);
+            self.myEKF.correct(GPSest);
+            self.Xe = self.myEKF.mu;
         end
         
-        function self = animate(self)
+        function self = animateOne(self)
             % Animates the agent on the current figure.
             
             % Unpack state
@@ -80,11 +53,11 @@ classdef allied_unit < ground_unit
             th = self.X(3);
             
             % Determine plotting points
-            box_points = [-self.w/2,self.w/2,self.w/2,-self.w/2;
-                          -self.h/2,-self.h/2,self.h/2,self.h/2];
-            line1_points = [-self.w/2,self.w/2;-self.h/2,self.h/2];
-            line2_points = [-self.w/2,self.w/2;self.h/2,-self.h/2];
-            dot_points = [0;self.h/3];
+            box_points = [-self.h/2,-self.h/2,self.h/2,self.h/2;
+                          -self.w/2,self.w/2,self.w/2,-self.w/2];
+            line1_points = [-self.h/2,self.h/2;-self.w/2,self.w/2];
+            line2_points = [self.h/2,-self.h/2;-self.w/2,self.w/2];
+            dot_points = [self.h/3;0];
             
             R = [cos(th), -sin(th); sin(th), cos(th)];
             rot_box = [x;y]+R*box_points;

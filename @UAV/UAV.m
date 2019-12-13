@@ -6,7 +6,7 @@ classdef UAV < handle
         Xd % Desired UAV state
         
         % State estimation variables
-        myEKF % EKF class to calculate and return estimated position
+        EKF_pos % EKF class to calculate and return estimated position
         allies % Allied units to be able to return current GPS locations
         
         % Tracking variables
@@ -30,12 +30,11 @@ classdef UAV < handle
         error % Current error (distance and bearing)
         v_limit % Commanded linear velocity limit
         om_limit % Commanded angular velocity limit
-        v % Experienced linear velocity
-        om % Experienced angular velocity
-        u % Commanded linear and angular velocity
+        v % Linear velocity
+        om % Angular velocity
     end
     methods
-        function self = UAV(P,Pall,allies,enemies)
+        function self = UAV(P,Ps,allies,enemies,dt)
         % A UAV object containing the relevant dyanmics, state estimates, and
         % animations.
         % Uses an EKF to estimate position, and velocity commands to update
@@ -43,9 +42,8 @@ classdef UAV < handle
         % according to defined limits.
         % Takes as arguments:
         % - A struct containing UAV properties
-        % - A struct containing simulation properties
-        % - An array of allied units to estimate position
-        % - An array of enemy units to be tracked
+        % - An array of allied units that may be used to estimate position
+        % - The length of the simulation time step
         
             %%% State Variables %%%
             % Initialize UAV state
@@ -53,10 +51,10 @@ classdef UAV < handle
                       P.y0;
                       P.th0];
             % Initialize EKF to estimate UAV state
-            self.myEKF = EKFtrilat(self.X,eye(3),P.sig_r,P.sig_b,...
-                P.alph,Pall.dt,length(enemies));
-            self.Xe = self.myEKF.mu;
-            self.enemy_X = self.myEKF.muE;
+            self.EKF_pos = EKFtrilat(self.X,eye(3),P.sig_r,P.sig_b,...
+                P.alph,dt,length(enemies));
+            self.Xe = self.EKF_pos.mu;
+            self.enemy_X = self.EKF_pos.muE;
             self.current_target = randi(size(self.enemy_X,2));
             % Initialize noise variables
             self.alph = P.alph;
@@ -68,8 +66,8 @@ classdef UAV < handle
             
             %%% Animation Variables %%%
             % Store shape property variables
-            self.w = Pall.w;
-            self.h = Pall.h;
+            self.w = Ps.w;
+            self.h = Ps.h;
             self.box_points = [-self.h/2,-self.h/2,self.h/2,self.h/2;
                                -self.w/2,self.w/2,self.w/2,-self.w/2];
             self.sym_points = [-self.h/4,0,self.h/3,0,-self.h/4,0;
@@ -85,13 +83,13 @@ classdef UAV < handle
             self.v_limit = P.v_limit;
             self.om_limit = P.om_limit;
             % Store the time step size
-            self.dt = Pall.dt;
+            self.dt = dt;
         end
         
         function self = move_to_target(self)
-        % Using the previously defined target position, moves the UAV
-        % toward the goal position, updating both the state and the state
-        % estimation
+            % Using the previously defined target position, moves the UAV
+            % toward the goal position, updating both the state and the
+            % state estimation.
             
             % Determine the required velocities
             self.calculateVelocity();
@@ -104,8 +102,8 @@ classdef UAV < handle
         end
         
         function self = track(self)
-        % Creates measurements to the enemy units and estimates their
-        % positions
+            % Creates measurements to the enemy units and estimates their
+            % position
             
             % Get location of the enemy units
             enemy_pos = self.enemies.getPos();
@@ -119,13 +117,13 @@ classdef UAV < handle
             obs = obs + self.Q.*rand(size(obs));
             
             % Update estimates based on measurement data
-            self.enemy_X = self.myEKF.track(obs);
+            self.enemy_X = self.EKF_pos.track(obs);
             self.setTarget();
         end
         
         function self = calculateVelocity(self)
-        % Calculates the required angular and linear velocity to reach the
-        % goal location
+            % Calculates the required angular and linear velocity to reach
+            % the goal location
             
             % Calculate the x, y, and theta error between the UAV's
             % estimated position and the desired location
@@ -155,17 +153,14 @@ classdef UAV < handle
                 self.om = sign(self.error(2))*self.om_limit;
             end
             
-            % Store commanded velocity
-            self.u = [self.v; self.om];
-            
             % Add motion noise
             self.v = self.v + self.alph(1)*rand();
             self.om = self.om + self.alph(2)*rand();
         end
         
         function self = updateDynamics(self)
-        % Updates the UAV state based on the current state and the
-        % commanded input velocities
+            % Updates the UAV state based on the current state and the
+            % commanded input velocities
             
             self.X(1) = self.X(1) + self.v*cos(self.X(3))*self.dt;
             self.X(2) = self.X(2) + self.v*sin(self.X(3))*self.dt;
@@ -189,7 +184,7 @@ classdef UAV < handle
             % the UAV's belief of its current state.
             
             % Get location of the allied units
-            allied_est = [zeros(2,1), self.allies.getEstPos()];
+            allied_est = [zeros(2,1), self.allies.getGPS()];
             allied_pos = [zeros(2,1), self.allies.getPos()];
             
             % Create measurement data for allied units
@@ -203,12 +198,12 @@ classdef UAV < handle
             
             % Update the EKF based on the estimated allied positions and
             % the measurement data
-            self.Xe = self.myEKF.update(self.u,allied_est,obs);
+            self.Xe = self.EKF_pos.update([self.v; self.om],allied_est,obs);
         end
         
         function self = animate(self)
-        % Animates the UAV true state and estimated state on the current
-        % figure
+            % Animates the UAV true state and estimated state on the
+            % current figure.
             
             % Unpack state
             x = self.X(1);
