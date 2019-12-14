@@ -26,7 +26,7 @@ enemy(2) = enemy_unit(P_enemy2,P);
 % Create the UAV (also creates stationary ground controller)
 uav = UAV(P_uav,P,ally,enemy);
 % Format visualization
-axis([-700,700,-200,1200]);
+axis([-800,800,-300,1300]);
 axis equal
 
 % Main simulation loop
@@ -35,7 +35,6 @@ axis equal
 enemy_target_pts = [-500+rand(1,2)*1000;rand(1,2)*1000];
 uav.setTarget();
 enemy.setTarget(enemy_target_pts);
-ally.setTarget(enemy_target_pts);
 % Plot the target on the map
 target_plots = gobjects(1,2);
 target_plots(1) = scatter(enemy_target_pts(1,1),enemy_target_pts(2,1),...
@@ -46,7 +45,7 @@ target_plots(2) = scatter(enemy_target_pts(1,2),enemy_target_pts(2,2),...
 for t = 1:2000
     % Have the UAV move toward its goal position
     uav.move_to_target();
-    uav.track();
+    uav.track(t*P.dt);
     % Update the UAV animation
     uav.animate();
     % Have the ground units take a step towards their goal position
@@ -60,7 +59,6 @@ for t = 1:2000
     if mod(t,400) == 0 && t ~= 2000
         enemy_target_pts = [-50+rand(1,2)*100;rand(1,2)*100];
         enemy.setTarget(enemy_target_pts);
-        ally.setTarget(enemy_target_pts);
         set(target_plots(1),'XData',enemy_target_pts(1,1),...
             'YData',enemy_target_pts(2,1));
         set(target_plots(2),'XData',enemy_target_pts(1,2),...

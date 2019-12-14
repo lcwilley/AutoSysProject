@@ -10,9 +10,11 @@ classdef UAV < handle
         allies % Allied units to be able to return current GPS locations
         
         % Tracking variables
+        bet % Field of vision of the UAV
+        myMCL % MCL class to estimate enemy motion based on measurements
         enemies % Enemy units to allow for measurements
         enemy_X % Estimated position of enemies
-        current_target % The enemy currently being pursued by the UAV
+        enemy_sig % Enemy uncertainty
         
         % Noise variables
         alph % Motion noise
@@ -47,6 +49,8 @@ classdef UAV < handle
         % - An array of allied units to estimate position
         % - An array of enemy units to be tracked
         
+            % Store the time step size
+            self.dt = Pall.dt;
             %%% State Variables %%%
             % Initialize UAV state
             self.X = [P.x0;
@@ -56,8 +60,6 @@ classdef UAV < handle
             self.myEKF = EKFtrilat(self.X,eye(3),P.sig_r,P.sig_b,...
                 P.alph,Pall.dt,length(enemies));
             self.Xe = self.myEKF.mu;
-            self.enemy_X = self.myEKF.muE;
-            self.current_target = randi(size(self.enemy_X,2));
             % Initialize noise variables
             self.alph = P.alph;
             self.Q = [P.sig_r; P.sig_b];
@@ -65,6 +67,13 @@ classdef UAV < handle
             % tracking
             self.allies = allies;
             self.enemies = enemies;
+            % Setup MCLs for tracking enemies
+            self.bet = P.bet;
+            self.myMCL = MCL.empty(0,length(self.enemies));
+            for i = 1:length(self.enemies)
+                self.myMCL(i) = MCL(10,0.5*ones(1,2),self.Q);
+            end
+            self.enemy_X = zeros(2,length(self.enemies));
             
             %%% Animation Variables %%%
             % Store shape property variables
@@ -84,8 +93,6 @@ classdef UAV < handle
             % Initialize command limits
             self.v_limit = P.v_limit;
             self.om_limit = P.om_limit;
-            % Store the time step size
-            self.dt = Pall.dt;
         end
         
         function self = move_to_target(self)
@@ -103,24 +110,58 @@ classdef UAV < handle
             self.updateStateEstimate();
         end
         
-        function self = track(self)
+        function self = track(self,t)
         % Creates measurements to the enemy units and estimates their
         % positions
             
-            % Get location of the enemy units
+            % Get location of the enemy units for measurements
             enemy_pos = self.enemies.getPos();
             
             % Create measurement data for enemy units
             del = enemy_pos - self.X(1:2);
-            obs = [sqrt(del(1,:).^2 + del(2,:).^2);
+            z = [sqrt(del(1,:).^2 + del(2,:).^2);
                 wrap_angle(atan2(del(2,:),del(1,:))-self.X(3))];
+            disp(z(2,:)*180/pi)
             
-            % Add noise to the measurement data
-            obs = obs + self.Q.*rand(size(obs));
+            % Update the MCL for each enemy
+            for i = 1:length(self.myMCL)
+                % Check possibility of detection (field of view)
+                if abs(z(2,i)) < self.bet/2
+                    % Check probability of detection (distance)
+                    %   if ...
+                    % Add noise to measurement data based on distance
+                    % noise = ...
+                    z = z + self.Q.*rand(size(z));
+                    self.myMCL(i).update(self.Xe,z(:,i),t);
+                    [self.enemy_X(:,i),self.enemy_sig(i)] =...
+                        self.myMCL(i).getEstimates();
+                    % end
+                end
+            end
             
-            % Update estimates based on measurement data
-            self.enemy_X = self.myEKF.track(obs);
+            % Set the target based on the enemy with greater uncertainty
             self.setTarget();
+        end
+        
+        function self = setTarget(self)
+        % Sets the UAV target to be the estimated position of the enemy
+        % that has a greater error
+        
+            if isempty(self.enemy_sig)
+                self.Xd = [0;0];
+            else
+                % Fly toward the target with less position information
+                [~,current_target] = max(self.enemy_sig);
+                self.Xd = self.enemy_X(:,current_target);
+                % Assign the nearest allied unit to go to the target's
+                % estimated position
+                ally_pos = self.allies.getEstPos();
+                [~,closer_ally] = min(sqrt(...
+                    (ally_pos(1,:)-self.enemy_X(1,current_target)).^2+...
+                    (ally_pos(1,:)-self.enemy_X(1,current_target)).^2));
+                self.allies(closer_ally).setTarget(...
+                    self.enemy_X(:,current_target));
+            end
         end
         
         function self = calculateVelocity(self)
@@ -170,18 +211,6 @@ classdef UAV < handle
             self.X(1) = self.X(1) + self.v*cos(self.X(3))*self.dt;
             self.X(2) = self.X(2) + self.v*sin(self.X(3))*self.dt;
             self.X(3) = self.X(3) + self.om*self.dt;
-        end
-        
-        function self = setTarget(self)
-            % Public function that allows for modification of desired x and
-            % y target positions. As part of the project, this should
-            % eventually be overwritten with an algorithm that determines
-            % the goal position based on the estimated enemy positions.
-            if all(all(isnan(self.enemy_X)))
-                self.Xd = self.X(1:2);
-            else
-                self.Xd = self.enemy_X(:,self.current_target);
-            end
         end
         
         function self = updateStateEstimate(self)

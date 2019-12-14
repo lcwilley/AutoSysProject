@@ -45,7 +45,7 @@ classdef allied_unit < ground_unit
         end
         
         function self = animateOne(self)
-            % Animates the agent on the current figure.
+        % Animates the agent on the current figure.
             
             % Unpack state
             x = self.X(1);
