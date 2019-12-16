@@ -71,9 +71,10 @@ classdef UAV < handle
             self.bet = P.bet;
             self.myMCL = MCL.empty(0,length(self.enemies));
             for i = 1:length(self.enemies)
-                self.myMCL(i) = MCL(10,0.5*ones(1,2),self.Q);
+                self.myMCL(i) = MCL(500,0.01,self.Q,self.dt);
             end
             self.enemy_X = zeros(2,length(self.enemies));
+            self.enemy_sig = [NaN NaN];
             
             %%% Animation Variables %%%
             % Store shape property variables
@@ -110,7 +111,7 @@ classdef UAV < handle
             self.updateStateEstimate();
         end
         
-        function self = track(self,t)
+        function self = track(self)
         % Creates measurements to the enemy units and estimates their
         % positions
             
@@ -121,7 +122,7 @@ classdef UAV < handle
             del = enemy_pos - self.X(1:2);
             z = [sqrt(del(1,:).^2 + del(2,:).^2);
                 wrap_angle(atan2(del(2,:),del(1,:))-self.X(3))];
-            disp(z(2,:)*180/pi)
+            disp(z(2,:))
             
             % Update the MCL for each enemy
             for i = 1:length(self.myMCL)
@@ -131,11 +132,16 @@ classdef UAV < handle
                     %   if ...
                     % Add noise to measurement data based on distance
                     % noise = ...
+                    
                     z = z + self.Q.*rand(size(z));
-                    self.myMCL(i).update(self.Xe,z(:,i),t);
+                    self.myMCL(i).update(self.Xe,z(:,i));
                     [self.enemy_X(:,i),self.enemy_sig(i)] =...
                         self.myMCL(i).getEstimates();
                     % end
+                else
+                    self.myMCL(i).update_no_meas();
+                    [self.enemy_X(:,i),self.enemy_sig(i)] =...
+                        self.myMCL(i).getEstimates();
                 end
             end
             
@@ -147,7 +153,7 @@ classdef UAV < handle
         % Sets the UAV target to be the estimated position of the enemy
         % that has a greater error
         
-            if isempty(self.enemy_sig)
+            if any(isnan(self.enemy_sig))
                 self.Xd = [0;0];
             else
                 % Fly toward the target with less position information
@@ -162,6 +168,11 @@ classdef UAV < handle
                 self.allies(closer_ally).setTarget(...
                     self.enemy_X(:,current_target));
             end
+%             if abs(sum(self.X(1:2)-self.Xd)) < 0.5
+%                 goal_pos = [300 300 -300 -300; 300 700 700 300];
+%                 ind = find(all(self.Xd==goal_pos,1));
+%                 self.Xd = goal_pos(:,mod((ind-1)+1,size(goal_pos,2))+1);
+%             end
         end
         
         function self = calculateVelocity(self)

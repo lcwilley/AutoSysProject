@@ -45,7 +45,7 @@ target_plots(2) = scatter(enemy_target_pts(1,2),enemy_target_pts(2,2),...
 for t = 1:2000
     % Have the UAV move toward its goal position
     uav.move_to_target();
-    uav.track(t*P.dt);
+    uav.track();
     % Update the UAV animation
     uav.animate();
     % Have the ground units take a step towards their goal position

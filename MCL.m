@@ -1,7 +1,6 @@
 classdef MCL < handle
     properties
         NP % Number of particles
-        prev_t % Previous time step
         obs % Boolean indicator of state initialization
         
         % Noise parameters
@@ -23,17 +22,19 @@ classdef MCL < handle
         plotHandle
     end
     methods
-        function self = MCL(NP,alph0,Q)
+        function self = MCL(NP,alph0,Q,dt)
             self.NP = NP;
             self.obs = 0;
-            self.x = zeros(4,self.NP);
-            self.g = @(X,n,dt) [1 0 dt 0;
-                             0 1 0 dt;
-                             0 0 1+n(1) 0;
-                             0 0 0 1+n(2)]*X;
+            self.x = zeros(3,self.NP);
+            self.g = @(X,n) [X(1) + 3.3*cos(X(3)+n)*dt;
+                             X(2) + 3.3*sin(X(3)+n)*dt
+                             atan2(-X(2),-X(1)) + n];
+%             self.g = @(X,n) [1 0 dt 0;
+%                              0 1 0 dt;
+%                              0 0 1 0;
+%                              0 0 0 1]*X + [0;0;n];
             self.h = @(X,x) [sqrt((X(1)-x(1))^2+(X(2)-x(2))^2);
-                            wrap_angle(atan2(X(2)-x(2),X(1)-x(1))-X(3))];
-            self.prev_t = 0;
+                            wrap_angle(atan2(x(2)-X(2),x(1)-X(1))-X(3))];
             % Unpack noise and landmarks
             self.alph = alph0;
             self.Q = Q;
@@ -41,9 +42,9 @@ classdef MCL < handle
             self.avg = mean(self.mu,2);
         end
         
-        function self = update(self,X,z,t)
+        function self = update(self,X,z)
             if self.obs
-                self.predict(t - self.prev_t);
+                self.predict();
                 self.correct(X,z);
                 self.low_variance_resample();
                 self.avg = sum(self.mu.*self.avg_wghts,2);
@@ -51,28 +52,40 @@ classdef MCL < handle
             else
                 % If the enemy has not yet been observed, initialize the
                 % position from the observation
-                self.x = [X(1) + (z(1)+rand(1,self.NP)*self.Q(1)).*...
-                              cos((z(2)+rand(1,self.NP)*self.Q(2))+X(3));
-                          X(2) + (z(1)+rand(1,self.NP)*self.Q(1)).*...
-                              sin((z(2)+rand(1,self.NP)*self.Q(2))+X(3));
-                          zeros(1,self.NP); zeros(1,self.NP)];
+                self.x = [X(1) + (z(1)+randn(1,self.NP)*self.Q(1)).*...
+                              cos((z(2)+randn(1,self.NP)*self.Q(2))+X(3));
+                          X(2) + (z(1)+randn(1,self.NP)*self.Q(1)).*...
+                              sin((z(2)+randn(1,self.NP)*self.Q(2))+X(3))];
+                angle_to_base = atan2(-self.x(2),-self.x(1));
+                self.x = [self.x;
+                          angle_to_base+randn(1,self.NP)*self.alph(1)];
                 self.mu = self.x;
                 self.avg = mean(self.x,2);
                 self.sig = sum(std(self.x(1:2,:),0,2));
+                self.obs = 1;
             end
-            self.prev_t = t;
             self.animate();
         end
         
-        function self = predict(self,dt)
+        function self = update_no_meas(self)
+            if self.obs
+                for i = 1:self.NP
+                    self.mu(:,i) = self.g(self.mu(:,i),0);
+                end
+                self.avg = sum(self.mu.*self.avg_wghts,2);
+                self.sig = sum(std(self.mu(1:2,:),0,2));
+                self.animate();
+            end
+        end
+        
+        function self = predict(self)
             for i = 1:self.NP
                 % Update based on the motion model
                 % It would be nice to have the alpha values change based on
                 % the probability of the measurement (i.e., worse
                 % measurements result in higher alpha values)
-                noise = [self.alph(1)*randn;
-                         self.alph(2)*randn];
-                self.x(:,i) = self.g(self.mu(:,i),noise,dt);
+                noise = self.alph(1)*randn();
+                self.x(:,i) = self.g(self.mu(:,i),noise);
             end
         end
         
@@ -87,11 +100,17 @@ classdef MCL < handle
                 % This is estimating the measurement for each particle.
                 % This needs to be done backwards.
                 meas_error = self.h(X,self.x(:,j)) - z;
+                meas_error(2) = wrap_angle(meas_error(2));
                 self.w(j) = self.w(j) *...
                     self.meas_prob(meas_error(1),self.Q(1)) *...
                     self.meas_prob(meas_error(2),self.Q(2));
             end
             % Normalize the weights
+            if sum(self.w) < 0.01
+                self.alph = 1.1*self.alph;
+            elseif sum(self.w) > 1
+                self.alph = 0.9*self.alph;
+            end
             self.w = self.w / sum(self.w);
         end
         
@@ -112,6 +131,14 @@ classdef MCL < handle
                 self.avg_wghts(m) = self.w(i);
             end
             self.avg_wghts = self.avg_wghts/sum(self.avg_wghts);
+            
+            % Combat particle deprivation
+            P = var(self.x,0,2); % covariance of prior
+            uniq = size(unique(self.mu),2); % number of unique particles
+            if uniq/self.NP < 0.5 % if there is a lot of duplication
+                Qx = P/((self.NP*uniq)^(1/size(self.mu,1))); % add noise
+                self.mu = self.mu + sqrt(Qx).*randn(size(self.mu));
+            end
         end
         
         function prob = meas_prob(~,a,b)
@@ -121,8 +148,13 @@ classdef MCL < handle
         end
         
         function [meanPos, spread] = getEstimates(self)
-            meanPos = self.avg(1:2);
-            spread = self.sig;
+            if self.obs
+                meanPos = self.avg(1:2);
+                spread = self.sig;
+            else
+                meanPos = NaN;
+                spread = NaN;
+            end
         end
         
         function self = animate(self)
